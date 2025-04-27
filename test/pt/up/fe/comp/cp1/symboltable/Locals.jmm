@@ -1,0 +1,7 @@
+class Locals {
+    public int foo() {
+        int a;
+        boolean b;
+        return 0;
+    }
+}

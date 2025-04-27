@@ -1,0 +1,17 @@
+class ReturnTypes {
+    public int sum() {
+        return 0;
+    }
+
+    public boolean check() {
+        return true;
+    }
+
+    public ReturnTypes getInstance() {
+        return this;
+    }
+
+    public int[] getArray() {
+        return [1, 2, 3];
+    }
+}

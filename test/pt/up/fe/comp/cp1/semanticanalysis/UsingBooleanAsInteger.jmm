@@ -1,0 +1,12 @@
+class UsingBooleanAsInteger {
+
+    public static void main(String[] args) {
+    }
+
+    public int foo() {
+        boolean b;
+        b = true;
+
+        return b + 1; // Invalid: cannot use boolean in integer arithmetic
+    }
+}

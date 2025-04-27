@@ -1,0 +1,7 @@
+class ObjectTypes {
+    ObjectTypes obj;
+
+    public ObjectTypes test(ObjectTypes param) {
+        return this;
+    }
+}

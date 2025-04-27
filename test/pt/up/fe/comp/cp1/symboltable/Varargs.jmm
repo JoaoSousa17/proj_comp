@@ -1,0 +1,4 @@
+class Varargs {
+    public void printAll(int... nums) {
+    }
+}

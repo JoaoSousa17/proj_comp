@@ -1,0 +1,16 @@
+class BooleanInWhileCondition {
+
+    public static void main(String[] args) {
+    }
+
+    public int foo() {
+        boolean cond;
+        cond = true;
+
+        while (cond) {
+            cond = false; // Valid: while condition is boolean
+        }
+
+        return 0;
+    }
+}

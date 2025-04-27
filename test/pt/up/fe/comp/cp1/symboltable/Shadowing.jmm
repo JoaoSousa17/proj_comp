@@ -1,0 +1,8 @@
+class Shadowing {
+    int x;
+
+    public int foo() {
+        boolean x;
+        return 0;
+    }
+}
