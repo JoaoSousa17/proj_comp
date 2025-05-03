@@ -1,0 +1,23 @@
+class ComplexArrayOps {
+    public int[] processArray(int[] arr) {
+        int i;
+        int temp;
+        int[] result;
+
+        result = new int[arr.length];
+        i = 0;
+
+        while (i < arr.length) {
+            // Operações complexas com arrays
+            temp = arr[i] * 2;
+            result[i] = temp + arr[arr.length - i - 1];
+            i = i + 1;
+        }
+
+        return result;
+    }
+
+    public static void main(String[] args) {
+
+    }
+}

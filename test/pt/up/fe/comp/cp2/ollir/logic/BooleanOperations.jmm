@@ -1,0 +1,26 @@
+import io;
+
+class BooleanOperations {
+    public boolean logicalOperations(boolean a, boolean b) {
+        boolean result1;
+        boolean result2;
+        boolean finalResult;
+
+        result1 = a && b;
+        result2 = a || b;
+
+        if (result1) {
+            finalResult = true;
+        } else if (result2) {
+            finalResult = true;
+        } else {
+            finalResult = false;
+        }
+
+        return finalResult;
+    }
+
+    public static void main(String[] args) {
+
+    }
+}

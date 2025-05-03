@@ -1,0 +1,27 @@
+class ObjectCreation {
+    int value;
+
+    public int getValue() {
+        return value;
+    }
+
+    public int setValue(int newValue) {
+        value = newValue;
+        return value;
+    }
+
+    public int createAndUse() {
+        ObjectCreation obj;
+        int result;
+
+        obj = new ObjectCreation();
+        obj.setValue(42);
+        result = obj.getValue();
+
+        return result;
+    }
+
+    public static void main(String[] args) {
+
+    }
+}

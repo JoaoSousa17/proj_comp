@@ -1,0 +1,33 @@
+class FieldOperations {
+    int value1;
+    int value2;
+    boolean flag;
+
+    public int initializeFields(int v1, int v2, boolean f) {
+        value1 = v1;
+        value2 = v2;
+        flag = f;
+        return 0;
+    }
+
+    public int getSum() {
+        int result;
+
+        if (flag) {
+            result = value1 + value2;
+        } else {
+            result = value1 - value2;
+        }
+
+        return result;
+    }
+
+    public static void main(String[] args) {
+        FieldOperations obj;
+        int result;
+
+        obj = new FieldOperations();
+        obj.initializeFields(10, 20, true);
+        result = obj.getSum();
+    }
+}

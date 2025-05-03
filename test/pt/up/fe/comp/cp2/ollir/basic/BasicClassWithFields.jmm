@@ -7,21 +7,14 @@ class CompileBasic extends Quicksort {
     boolean boolField;
 
     public int method1() {
-        return intField;
+        int intLocal1;
+        boolean boolLocal1;
+
+        return 0;
     }
 
-    public boolean method2(int intField) {
-        boolean boolField;
-
-        boolField = intField < 0;
-
-        return boolField;
-    }
-
-    public int method3(int value) {
-        intField = value;
-
-        return intField;
+    public boolean method2(int intParam1, boolean boolParam1) {
+        return boolParam1;
     }
 
 

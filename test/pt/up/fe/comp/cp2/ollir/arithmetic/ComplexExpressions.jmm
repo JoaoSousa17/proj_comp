@@ -1,0 +1,14 @@
+class ComplexExpressions {
+    public int compute(int a, int b, int c) {
+        int result;
+
+        // Expressão complexa com múltiplos operadores e precedência
+        result = (a + b) * c / (a + 1) - (b * c + a);
+
+        return result;
+    }
+
+    public static void main(String[] args) {
+
+    }
+}

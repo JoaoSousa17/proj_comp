@@ -1,0 +1,46 @@
+class MultiDimensional {
+    public int sumMatrix(int[][] matrix, int rows, int cols) {
+        int i;
+        int j;
+        int sum;
+
+        sum = 0;
+        i = 0;
+
+        while (i < rows) {
+            j = 0;
+            while (j < cols) {
+                sum = sum + matrix[i][j];
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+
+        return sum;
+    }
+
+    public int[][] createMatrix(int rows, int cols) {
+        int[][] matrix;
+        int i;
+        int j;
+
+        matrix = new int[rows][];
+        i = 0;
+
+        while (i < rows) {
+            matrix[i] = new int[cols];
+            j = 0;
+            while (j < cols) {
+                matrix[i][j] = i * cols + j;
+                j = j + 1;
+            }
+            i = i + 1;
+        }
+
+        return matrix;
+    }
+
+    public static void main(String[] args) {
+
+    }
+}

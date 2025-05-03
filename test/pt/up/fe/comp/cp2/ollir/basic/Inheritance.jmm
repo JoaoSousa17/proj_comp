@@ -1,0 +1,23 @@
+import BaseClass;
+
+class Inheritance extends BaseClass {
+    public int overriddenMethod(int value) {
+        // Override de método na classe base
+        return value * 2;
+    }
+
+    public int callBaseMethod(int value) {
+        int baseResult;
+        int thisResult;
+
+        // Em Java--, assumimos que o método da classe pai existe
+        baseResult = super.normalMethod(value);
+        thisResult = this.overriddenMethod(value);
+
+        return baseResult + thisResult;
+    }
+
+    public static void main(String[] args) {
+
+    }
+}

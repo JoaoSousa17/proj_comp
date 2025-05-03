@@ -49,17 +49,17 @@ public class OptimizationsTest {
     public void regAllocSimple() {
 
         String filename = "reg_alloc/regalloc_no_change.jmm";
-        int expectedTotalReg = 4;
-        int configMaxRegs = 2;
+        int expectedNumReg = 4;
 
-        OllirResult optimized = getOllirResultRegalloc(filename, configMaxRegs);
+        OllirResult original = getOllirResult(filename);
+        OllirResult optimized = getOllirResultRegalloc(filename, expectedNumReg);
 
         int actualNumReg = CpUtils.countRegisters(CpUtils.getMethod(optimized, "soManyRegisters"));
 
         // Number of registers might change depending on what temporaries are generated, no use comparing with original
 
-        CpUtils.assertTrue("Expected number of locals in 'soManyRegisters' to be equal to " + expectedTotalReg + ", is " + actualNumReg,
-                actualNumReg == expectedTotalReg,
+        CpUtils.assertTrue("Expected number of locals in 'soManyRegisters' to be equal to " + expectedNumReg + ", is " + actualNumReg,
+                actualNumReg == expectedNumReg,
                 optimized);
 
 
@@ -73,11 +73,10 @@ public class OptimizationsTest {
     public void regAllocSequence() {
 
         String filename = "reg_alloc/regalloc.jmm";
-        int expectedTotalReg = 3;
-        int configMaxRegs = 1;
+        int expectedNumReg = 3;
 
         OllirResult original = getOllirResult(filename);
-        OllirResult optimized = getOllirResultRegalloc(filename, configMaxRegs);
+        OllirResult optimized = getOllirResultRegalloc(filename, expectedNumReg);
 
         int originalNumReg = CpUtils.countRegisters(CpUtils.getMethod(original, "soManyRegisters"));
         int actualNumReg = CpUtils.countRegisters(CpUtils.getMethod(optimized, "soManyRegisters"));
@@ -86,8 +85,8 @@ public class OptimizationsTest {
                 originalNumReg, actualNumReg,
                 optimized);
 
-        CpUtils.assertTrue("Expected number of locals in 'soManyRegisters' to be equal to " + expectedTotalReg + ", is " + actualNumReg,
-                actualNumReg == expectedTotalReg,
+        CpUtils.assertTrue("Expected number of locals in 'soManyRegisters' to be equal to " + expectedNumReg + ", is " + actualNumReg,
+                actualNumReg == expectedNumReg,
                 optimized);
 
 

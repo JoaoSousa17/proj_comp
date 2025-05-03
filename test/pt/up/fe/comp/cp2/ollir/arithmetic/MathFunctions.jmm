@@ -1,0 +1,39 @@
+class MathFunctions {
+    // Implementação simplificada de potência
+    public int pow(int base, int exponent) {
+        int result;
+        int i;
+
+        result = 1;
+        i = 0;
+
+        while (i < exponent) {
+            result = result * base;
+            i = i + 1;
+        }
+
+        return result;
+    }
+
+    // Implementação de valor absoluto
+    public int abs(int n) {
+        if (n < 0) {
+            return -n;
+        } else {
+            return n;
+        }
+    }
+
+    // Implementação de máximo
+    public int max(int a, int b) {
+        if (a > b) {
+            return a;
+        } else {
+            return b;
+        }
+    }
+
+    public static void main(String[] args) {
+
+    }
+}

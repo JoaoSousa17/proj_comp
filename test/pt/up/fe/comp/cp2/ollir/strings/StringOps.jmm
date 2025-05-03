@@ -1,0 +1,23 @@
+import io;
+
+class StringOps {
+    public boolean processString(String s) {
+        boolean result;
+
+        // Em Java--, temos que tratar strings como objetos importados
+        // Assume que io tem métodos para manipular strings
+        io.println("Processing string");
+
+        if (s.length() > 0) {
+            result = true;
+        } else {
+            result = false;
+        }
+
+        return result;
+    }
+
+    public static void main(String[] args) {
+
+    }
+}

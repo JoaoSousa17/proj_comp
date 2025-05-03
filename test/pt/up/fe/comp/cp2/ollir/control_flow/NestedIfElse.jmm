@@ -1,0 +1,25 @@
+class NestedIfElse {
+    public int test(int a, int b, int c) {
+        int result;
+
+        if (a < b) {
+            if (b < c) {
+                result = c;
+            } else {
+                result = b;
+            }
+        } else {
+            if (a < c) {
+                result = c;
+            } else {
+                result = a;
+            }
+        }
+
+        return result;
+    }
+
+    public static void main(String[] args) {
+
+    }
+}
