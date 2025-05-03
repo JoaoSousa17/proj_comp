@@ -1,5 +1,9 @@
 package pt.up.fe.comp2025.optimization;
 
+/**
+ * Class representing the result of generating OLLIR code from a JmmNode that is an expression.
+ * It contains the OLLIR code for the expression and the computation steps needed to get that code.
+ */
 public class OllirExprResult {
 
     public static final OllirExprResult EMPTY = new OllirExprResult("", "");
@@ -30,7 +34,7 @@ public class OllirExprResult {
 
     @Override
     public String toString() {
-        return "OllirNodeResult{" +
+        return "OllirExprResult{" +
                 "computation='" + computation + '\'' +
                 ", code='" + code + '\'' +
                 '}';
