@@ -1,0 +1,27 @@
+ArrayField {
+    .field arrayField.array.i32;
+    .field intArray.array.i32;
+    .field numbers.array.i32;
+
+    .construct ArrayField().V {
+        invokespecial(this, "<init>").V;
+    }
+
+    .method public static main(args.array.String).V {
+        obj.ArrayField :=.ArrayField new(ArrayField).ArrayField;
+        invokespecial(obj.ArrayField, "<init>").V;
+        result.i32 :=.i32 invokevirtual(obj.ArrayField, "useArrayField").i32;
+        invokestatic(io, "println", result.i32).V;
+        ret.V;
+    }
+
+    .method public useArrayField().i32 {
+        size.i32 :=.i32 5.i32;
+        newArray.array.i32 :=.array.i32 new(array, size.i32).array.i32;
+        putfield(this, arrayField.array.i32, newArray.array.i32).V;
+        temp.array.i32 :=.array.i32 getfield(this, arrayField.array.i32).array.i32;
+        temp.array.i32[0.i32].i32 :=.i32 42.i32;
+        result.i32 :=.i32 temp.array.i32[0.i32].i32;
+        ret.i32 result.i32;
+    }
+}
