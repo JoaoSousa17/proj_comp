@@ -275,4 +275,123 @@ public class JasminTest {
         // Make sure the code compiles
         jasminResult.compile();
     }
+
+    // EXTRA TESTS FOR CP3
+     /**
+     * Test if constructor <init> method is properly generated
+     */
+    @Test
+    public void section1_Basic_Constructor_Init() {
+        var jasminResult = getJasminResult("basic/OllirToJasminBasic.ollir");
+        CpUtils.matches(jasminResult, "\\.method\\s+public\\s+<init>\\(\\)V");
+        CpUtils.matches(jasminResult, "invokespecial\\s+java/lang/Object/<init>\\(\\)V");
+    }
+
+    /**
+     * Test if constructor properly calls superclass constructor
+     */
+    @Test
+    public void section1_Basic_Constructor_Super() {
+        var jasminResult = getJasminResult("basic/OllirToJasminBasic.ollir");
+        CpUtils.matches(jasminResult, "aload_0");
+        CpUtils.matches(jasminResult, "invokespecial\\s+java/lang/Object/<init>\\(\\)V");
+        CpUtils.matches(jasminResult, "return");
+    }
+
+    @Test
+    public void section1_Basic_Field_Declaration() {
+        var jasminResult = getJasminResult("basic/OllirToJasminFields.ollir");
+        // Should have field declarations in the class
+        CpUtils.matches(jasminResult, "\\.field\\s+\\w+\\s+I");
+    }
+
+    /**
+     * Test if field access (getfield) works correctly
+     */
+    @Test
+    public void section1_Basic_Field_GetField() {
+        var jasminResult = getJasminResult("basic/OllirToJasminFields.ollir");
+        CpUtils.matches(jasminResult, "getfield");
+    }
+
+    /**
+     * Test if field assignment (putfield) works correctly
+     */
+    @Test
+    public void section1_Basic_Field_PutField() {
+        var jasminResult = getJasminResult("basic/OllirToJasminFields.ollir");
+        CpUtils.matches(jasminResult, "putfield");
+    }
+
+   /**
+     * Test arithmetic operations with correct precedence (2 + 3 * 4 = 14)
+     */
+    @Test
+    public void section2_Arithmetic_Precedence_MulAdd() {
+        CpUtils.runJasmin(getJasminResult("arithmetic/ArithmeticPrecedence.ollir"), "14");
+    }
+
+    /**
+     * Test arithmetic operations with parentheses ((2 + 3) * 4 = 20)
+     */ 
+    @Test
+    public void section2_Arithmetic_Precedence_Parentheses() {
+        CpUtils.runJasmin(getJasminResult("arithmetic/ArithmeticParentheses.ollir"), "20");
+    }
+
+    /**
+     * Test array declaration as method parameter
+     */
+    @Test
+    public void section5_Arrays_Parameter_Declaration() {
+        var jasminResult = getJasminResult("arrays/ArrayAsArgCode.ollir");
+        CpUtils.matches(jasminResult, "\\(\\[I\\)");
+    }
+
+    /**
+     * Test array field declaration
+     */
+    @Test
+    public void section5_Arrays_Field_Declaration() {
+        var jasminResult = getJasminResult("arrays/ArrayField.ollir");
+        CpUtils.matches(jasminResult, "\\.field\\s+\\w+\\s+\\[I");
+    }
+
+    /**
+     * Test newarray instruction for array creation
+     */
+    @Test
+    public void section5_Arrays_Creation_NewArray() {
+        var jasminResult = getJasminResult("arrays/ArrayInit.ollir");
+        CpUtils.matches(jasminResult, "newarray\\s+int");
+    }
+
+    /**
+     * Test stack limit calculation for method calls
+     */
+    @Test
+    public void section6_Limits_Stack_MethodCall() {
+        var jasminResult = getJasminResult("calls/ConditionArgsFuncCall.ollir");
+        var methodCode = CpUtils.getJasminMethod(jasminResult);
+        var numStack = Integer.parseInt(SpecsStrings.getRegexGroup(methodCode, CpUtils.getLimitStackRegex(), 1));
+        
+        // Method calls should have reasonable stack limits
+        assertTrue("Stack limit should be reasonable for method calls: " + numStack, numStack >= 1 && numStack <= 10);
+        jasminResult.compile();
+    }
+
+    /**
+     * Test locals limit calculation for arrays
+     */
+    @Test
+    public void section6_Limits_Locals_Arrays() {
+        var jasminResult = getJasminResult("arrays/ArrayInit.ollir");
+        var methodCode = CpUtils.getJasminMethod(jasminResult);
+        var numLocals = Integer.parseInt(SpecsStrings.getRegexGroup(methodCode, CpUtils.getLimitLocalsRegex(), 1));
+        
+        // Array methods should have reasonable local limits
+        assertTrue("Locals limit should be reasonable for arrays: " + numLocals, numLocals >= 1 && numLocals <= 10);
+        jasminResult.compile();
+    }
+
 }

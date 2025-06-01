@@ -101,42 +101,55 @@ public class JasminGenerator {
 
     private String generateClassUnit(ClassUnit classUnit) {
 
-        var code = new StringBuilder();
+    var code = new StringBuilder();
 
-        // generate class name
-        var className = ollirResult.getOllirClass().getClassName();
-        code.append(".class ").append(className).append(NL).append(NL);
+    // generate class name
+    var className = ollirResult.getOllirClass().getClassName();
+    code.append(".class ").append(className).append(NL).append(NL);
 
-        var fullSuperClass = "java/lang/Object";
+    var fullSuperClass = "java/lang/Object";
 
-        code.append(".super ").append(fullSuperClass).append(NL);
+    code.append(".super ").append(fullSuperClass).append(NL);
 
-        // generate a single constructor method
-        var defaultConstructor = """
-                ;default constructor
-                .method public <init>()V
-                    aload_0
-                    invokespecial %s/<init>()V
-                    return
-                .end method
-                """.formatted(fullSuperClass);
-        code.append(defaultConstructor);
+    // Generate field declarations
+    for (var field : ollirResult.getOllirClass().getFields()) {
+        var fieldAccessModifier = types.getModifier(field.getFieldAccessModifier());
+        var fieldName = field.getFieldName();
+        var fieldType = types.getJasminType(field.getFieldType());
+        
+        code.append(".field ").append(fieldAccessModifier).append(fieldName).append(" ").append(fieldType).append(NL);
+    }
+    
+    if (!ollirResult.getOllirClass().getFields().isEmpty()) {
+        code.append(NL); // Add blank line after fields
+    }
 
-        // generate code for all other methods
-        for (var method : ollirResult.getOllirClass().getMethods()) {
+    // generate a single constructor method
+    var defaultConstructor = """
+            ;default constructor
+            .method public <init>()V
+                aload_0
+                invokespecial %s/<init>()V
+                return
+            .end method
+            """.formatted(fullSuperClass);
+    code.append(defaultConstructor);
 
-            // Ignore constructor, since there is always one constructor
-            // that receives no arguments, and has been already added
-            // previously
-            if (method.isConstructMethod()) {
-                continue;
-            }
+    // generate code for all other methods
+    for (var method : ollirResult.getOllirClass().getMethods()) {
 
-            code.append(apply(method));
+        // Ignore constructor, since there is always one constructor
+        // that receives no arguments, and has been already added
+        // previously
+        if (method.isConstructMethod()) {
+            continue;
         }
 
-        return code.toString();
+        code.append(apply(method));
     }
+
+    return code.toString();
+}
 
     private String generatePutField(PutFieldInstruction putField) {
     var code = new StringBuilder();

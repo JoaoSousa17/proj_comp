@@ -121,5 +121,9 @@ public class JasminOptimizationsTest {
 
     }
 
+    // EXTRA OPTIMIZATIONS TESTS FOR CP3
+
+
+
 
 }
