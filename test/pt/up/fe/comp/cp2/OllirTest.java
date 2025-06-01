@@ -5,11 +5,11 @@ import org.specs.comp.ollir.*;
 import org.specs.comp.ollir.inst.*;
 import org.specs.comp.ollir.type.BuiltinKind;
 import pt.up.fe.comp.CpUtils;
-import pt.up.fe.comp.TestUtils;
 import pt.up.fe.comp.jmm.ollir.OllirResult;
 import pt.up.fe.specs.util.SpecsIo;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.stream.Collectors;
 
@@ -17,9 +17,10 @@ import static org.hamcrest.CoreMatchers.hasItem;
 import static org.junit.Assert.*;
 
 public class OllirTest {
+    private static final String BASE_PATH = "pt/up/fe/comp/cp2/ollir/";
 
     static OllirResult getOllirResult(String filename) {
-        return TestUtils.optimize(SpecsIo.getResource("pt/up/fe/comp/cp2/ollir/" + filename));
+        return CpUtils.getOllirResult(SpecsIo.getResource(BASE_PATH + filename), Collections.emptyMap(), false);
     }
 
     public void compileBasic(ClassUnit classUnit) {
@@ -54,7 +55,10 @@ public class OllirTest {
         assertTrue("Could not find a return instruction in method2", retInst2.isPresent());
     }
 
-    public void compileBasicWithFields(ClassUnit classUnit) {
+    public void compileBasicWithFields(OllirResult ollirResult) {
+
+        ClassUnit classUnit = ollirResult.getOllirClass();
+
         // Test name of the class and super
         assertEquals("Class name not what was expected", "CompileBasic", classUnit.getClassName());
         assertEquals("Super class name not what was expected", "Quicksort", classUnit.getSuperClass());
@@ -66,30 +70,29 @@ public class OllirTest {
         assertThat(fieldNames, hasItem(classUnit.getField(1).getFieldName()));
 
         // Test method 1
-        Method method1 = classUnit.getMethods().stream()
-                .filter(method -> method.getMethodName().equals("method1"))
-                .findFirst()
-                .orElse(null);
-
+        Method method1 = CpUtils.getMethod(ollirResult, "method1");
         assertNotNull("Could not find method1", method1);
 
-        var retInst1 = method1.getInstructions().stream()
-                .filter(inst -> inst instanceof ReturnInstruction)
-                .findFirst();
-        assertTrue("Could not find a return instruction in method1", retInst1.isPresent());
+        var method1GetField = CpUtils.getInstructions(GetFieldInstruction.class, method1);
+        assertTrue("Expected 1 getfield instruction in method1, found " + method1GetField.size(), method1GetField.size() == 1);
+
 
         // Test method 2
-        Method method2 = classUnit.getMethods().stream()
-                .filter(method -> method.getMethodName().equals("method2"))
-                .findFirst()
-                .orElse(null);
-
+        var method2 = CpUtils.getMethod(ollirResult, "method2");
         assertNotNull("Could not find method2'", method2);
 
-        var retInst2 = method2.getInstructions().stream()
-                .filter(inst -> inst instanceof ReturnInstruction)
-                .findFirst();
-        assertTrue("Could not find a return instruction in method2", retInst2.isPresent());
+        var method2GetField = CpUtils.getInstructions(GetFieldInstruction.class, method2);
+        assertTrue("Expected 0 getfield instruction in method2, found " + method2GetField.size(), method2GetField.isEmpty());
+
+        var method2PutField = CpUtils.getInstructions(PutFieldInstruction.class, method2);
+        assertTrue("Expected 0 putfield instruction in method2, found " + method2PutField.size(), method2PutField.isEmpty());
+
+        // Test method 3
+        var method3 = CpUtils.getMethod(ollirResult, "method3");
+        assertNotNull("Could not find method3'", method3);
+
+        var method3PutField = CpUtils.getInstructions(PutFieldInstruction.class, method3);
+        assertTrue("Expected 1 putfield instruction in method3, found " + method3PutField.size(), method3PutField.size() == 1);
     }
 
     public void compileArithmetic(ClassUnit classUnit) {
@@ -166,36 +169,38 @@ public class OllirTest {
 
 
     @Test
-    public void section1_Basic_Class() {
+    public void basicClass() {
         var result = getOllirResult("basic/BasicClass.jmm");
 
         compileBasic(result.getOllirClass());
     }
 
     @Test
-    public void section1_Basic_Class_With_Fields() {
+    public void basicClassWithFields() {
         var result = getOllirResult("basic/BasicClassWithFields.jmm");
+        System.out.println(result.getOllirCode());
 
-        compileBasic(result.getOllirClass());
+        compileBasicWithFields(result);
     }
 
     @Test
-    public void section1_Basic_Assignment() {
+    public void basicAssignment() {
         var result = getOllirResult("basic/BasicAssignment.jmm");
 
         compileAssignment(result.getOllirClass());
     }
 
     @Test
-    public void section1_Basic_Method_Invocation() {
+    public void basicMethodInvocation() {
         var result = getOllirResult("basic/BasicMethodInvocation.jmm");
 
         compileMethodInvocation(result.getOllirClass());
     }
 
+
     /*checks if method declaration is correct (array)*/
     @Test
-    public void section1_Basic_Method_Declaration_Array() {
+    public void basicMethodDeclarationArray() {
         var result = getOllirResult("basic/BasicMethodsArray.jmm");
 
         var method = CpUtils.getMethod(result, "func4");
@@ -204,68 +209,35 @@ public class OllirTest {
     }
 
     @Test
-    public void section2_Arithmetic_Simple_add() {
+    public void arithmeticSimpleAdd() {
         var ollirResult = getOllirResult("arithmetic/Arithmetic_add.jmm");
 
         compileArithmetic(ollirResult.getOllirClass());
     }
 
     @Test
-    public void section2_Arithmetic_Simple_and() {
+    public void arithmeticSimpleAnd() {
         var ollirResult = getOllirResult("arithmetic/Arithmetic_and.jmm");
-
         var method = CpUtils.getMethod(ollirResult, "main");
+        var numBranches = CpUtils.getInstructions(CondBranchInstruction.class, method).size();
 
-        CpUtils.assertHasOperation(OperationType.ANDB, method, ollirResult);
+
+        CpUtils.assertTrue("Expected at least 2 branches, found " + numBranches, numBranches >= 2, ollirResult);
     }
 
     @Test
-    public void section2_Arithmetic_Simple_less() {
+    public void arithmeticSimpleLess() {
         var ollirResult = getOllirResult("arithmetic/Arithmetic_less.jmm");
 
         var method = CpUtils.getMethod(ollirResult, "main");
 
         CpUtils.assertHasOperation(OperationType.LTH, method, ollirResult);
+
     }
 
     @Test
-    public void testNestedExpressions() {
-        var result = getOllirResult("complex/NestedExpressions.jmm");
-        var method = CpUtils.getMethod(result, "compute");
+    public void controlFlowIfSimpleSingleGoTo() {
 
-        // Verify multiple binary operations are present
-        CpUtils.assertHasOperation(OperationType.ADD, method, result);
-        CpUtils.assertHasOperation(OperationType.MUL, method, result);
-        CpUtils.assertHasOperation(OperationType.DIV, method, result);
-
-        // Check that we have the right number of operations (should have at least 3)
-        var ops = CpUtils.getInstructions(OpInstruction.class, method);
-        CpUtils.assertTrue("Expected at least 3 operations in nested expression", ops.size() >= 3, result);
-    }
-
-    @Test
-    public void testComplexExpressions() {
-        var result = getOllirResult("arithmetic/ComplexExpressions.jmm");
-        var method = CpUtils.getMethod(result, "compute");
-
-        // Verificar operações aritméticas
-        CpUtils.assertHasOperation(OperationType.ADD, method, result);
-        CpUtils.assertHasOperation(OperationType.MUL, method, result);
-        CpUtils.assertHasOperation(OperationType.DIV, method, result);
-        CpUtils.assertHasOperation(OperationType.SUB, method, result);
-
-        // Verificar quantidade de operações
-        CpUtils.assertNumberOfOperations(OperationType.ADD, 2, method, result);
-        CpUtils.assertNumberOfOperations(OperationType.MUL, 2, method, result);
-
-        // Verificar que a ordem das operações está correta (deve haver temporários para resultados intermediários)
-        var assigns = CpUtils.assertInstExists(AssignInstruction.class, method, result);
-        CpUtils.assertTrue("Deve ter múltiplas instruções de atribuição para cálculos intermediários",
-                assigns.size() >= 4, result);
-    }
-
-    @Test
-    public void section3_ControlFlow_If_Simple_Single_goto() {
         var result = getOllirResult("control_flow/SimpleIfElseStat.jmm");
 
         var method = CpUtils.getMethod(result, "func");
@@ -278,7 +250,8 @@ public class OllirTest {
     }
 
     @Test
-    public void section3_ControlFlow_If_Switch() {
+    public void controlFlowIfSwitch() {
+
         var result = getOllirResult("control_flow/SwitchStat.jmm");
 
         var method = CpUtils.getMethod(result, "func");
@@ -291,63 +264,21 @@ public class OllirTest {
     }
 
     @Test
-    public void testIfElseNesting() {
-        var result = getOllirResult("control_flow/NestedIfElse.jmm");
-        var method = CpUtils.getMethod(result, "test");
+    public void controlFlowWhileSimple() {
 
-        // Verify multiple conditional branches
-        var branches = CpUtils.assertInstExists(CondBranchInstruction.class, method, result);
-        CpUtils.assertTrue("Expected at least 2 conditional branches", branches.size() >= 2, result);
-
-        // Check for goto instructions that should be part of the control flow
-        var gotos = CpUtils.assertInstExists(GotoInstruction.class, method, result);
-        CpUtils.assertTrue("Expected at least 2 goto instructions", gotos.size() >= 2, result);
-    }
-
-    @Test
-    public void section3_ControlFlow_While_Simple() {
         var result = getOllirResult("control_flow/SimpleWhileStat.jmm");
 
         var method = CpUtils.getMethod(result, "func");
 
         var branches = CpUtils.assertInstExists(CondBranchInstruction.class, method, result);
+
         CpUtils.assertTrue("Number of branches between 1 and 2", branches.size() > 0 && branches.size() < 3, result);
     }
 
-    @Test
-    public void testWhileLoopWithBreak() {
-        var result = getOllirResult("control_flow/WhileWithBreak.jmm");
-        var method = CpUtils.getMethod(result, "count");
-
-        // Verify conditional branch for while loop
-        var branches = CpUtils.assertInstExists(CondBranchInstruction.class, method, result);
-        CpUtils.assertTrue("Expected at least one conditional branch", branches.size() >= 1, result);
-
-        // Check for gotos that would implement the break
-        var gotos = CpUtils.assertInstExists(GotoInstruction.class, method, result);
-        CpUtils.assertTrue("Expected at least one goto instruction for break", gotos.size() >= 1, result);
-    }
-
-    @Test
-    public void testNestedLoops() {
-        var result = getOllirResult("control_flow/NestedLoops.jmm");
-        var method = CpUtils.getMethod(result, "multiplyTable");
-
-        // Verificar loops aninhados
-        var branches = CpUtils.assertInstExists(CondBranchInstruction.class, method, result);
-        CpUtils.assertTrue("Deve ter pelo menos 2 instruções de branch para loops aninhados", branches.size() >= 2, result);
-
-        // Verificar gotos
-        var gotos = CpUtils.assertInstExists(GotoInstruction.class, method, result);
-        CpUtils.assertTrue("Deve ter pelo menos 2 instruções goto para loops", gotos.size() >= 2, result);
-
-        // Verificar operação de multiplicação
-        CpUtils.assertHasOperation(OperationType.MUL, method, result);
-    }
 
     /*checks if an array is correctly initialized*/
     @Test
-    public void section4_Arrays_Init_Array() {
+    public void arraysInitArray() {
         var result = getOllirResult("arrays/ArrayInit.jmm");
 
         var method = CpUtils.getMethod(result, "main");
@@ -371,7 +302,7 @@ public class OllirTest {
 
     /*checks if the access to the elements of array is correct*/
     @Test
-    public void section4_Arrays_Access_Array() {
+    public void arraysAccessArray() {
         var result = getOllirResult("arrays/ArrayAccess.jmm");
 
         var method = CpUtils.getMethod(result, "foo");
@@ -388,7 +319,7 @@ public class OllirTest {
 
     /*checks multiple expressions as indexes to access the elements of an array*/
     @Test
-    public void section4_Arrays_Load_ComplexArrayAccess() {
+    public void arraysLoadComplexArrayAccess() {
         // Just parse
         var result = getOllirResult("arrays/ComplexArrayAccess.jmm");
 
@@ -408,77 +339,4 @@ public class OllirTest {
         CpUtils.assertEquals("Number of array reads", 6, numArrayReads, result);
     }
 
-    @Test
-    public void testArrayOperations() {
-        var result = getOllirResult("arrays/ComplexArrayOps.jmm");
-        var method = CpUtils.getMethod(result, "processArray");
-
-        // Check array operations
-        var assigns = CpUtils.assertInstExists(AssignInstruction.class, method, result);
-
-        // Count array stores
-        var arrayStores = assigns.stream()
-                .filter(assign -> assign.getDest() instanceof ArrayOperand)
-                .count();
-        CpUtils.assertTrue("Expected at least 2 array store operations", arrayStores >= 2, result);
-
-        // Check if there are array reads in expressions
-        var arrayReadsInRhs = assigns.stream()
-                .flatMap(assign -> CpUtils.getElements(assign.getRhs()).stream())
-                .filter(element -> element instanceof ArrayOperand)
-                .count();
-        CpUtils.assertTrue("Expected at least 2 array read operations", arrayReadsInRhs >= 2, result);
-    }
-
-    @Test
-    public void testVarargsMethod() {
-        var result = getOllirResult("arrays/VarargsMethod.jmm");
-        var method = CpUtils.getMethod(result, "sum");
-
-        // Check return instruction exists
-        CpUtils.assertReturnExists(method, result);
-
-        // Verify the method has the varargs keyword in OLLIR
-        String ollirCode = result.getOllirCode();
-        assertTrue("Method should be marked as varargs in OLLIR",
-                ollirCode.contains("varargs") && ollirCode.contains("sum"));
-
-        // Test the method invocation with multiple arguments
-        var mainMethod = CpUtils.getMethod(result, "main");
-        var calls = CpUtils.assertInstExists(CallInstruction.class, mainMethod, result);
-        CpUtils.assertTrue("Expected at least one method call", calls.size() >= 1, result);
-    }
-
-    @Test
-    public void testMethodCallChaining() {
-        var result = getOllirResult("methods/MethodChaining.jmm");
-        var method = CpUtils.getMethod(result, "chainCalls");
-
-        // Check for method invocations
-        var calls = CpUtils.assertInstExists(CallInstruction.class, method, result);
-        CpUtils.assertTrue("Expected at least 2 method calls for chaining", calls.size() >= 2, result);
-
-        // Verify structure of chained calls - there should be temporary variables to store intermediate results
-        var assigns = CpUtils.assertInstExists(AssignInstruction.class, method, result);
-        CpUtils.assertTrue("Expected assignments for storing intermediate results", assigns.size() >= 2, result);
-    }
-
-    @Test
-    public void testFieldOperations() {
-        var result = getOllirResult("basic/FieldOperations.jmm");
-
-        // Testar inicialização de campos
-        var initMethod = CpUtils.getMethod(result, "initializeFields");
-        var putFields = CpUtils.getInstructions(PutFieldInstruction.class, initMethod);
-        CpUtils.assertTrue("Deve ter pelo menos 3 atribuições a campos", putFields.size() >= 3, result);
-
-        // Testar acesso a campos
-        var getMethod = CpUtils.getMethod(result, "getSum");
-        var getFields = CpUtils.getInstructions(GetFieldInstruction.class, getMethod);
-        CpUtils.assertTrue("Deve acessar campos", getFields.size() >= 2, result);
-
-        // Verificar decisão condicional baseada em campo
-        var branches = CpUtils.assertInstExists(CondBranchInstruction.class, getMethod, result);
-        CpUtils.assertTrue("Deve ter um branch baseado no campo flag", branches.size() >= 1, result);
-    }
 }

@@ -155,22 +155,18 @@ public class TypeUtils {
     }
 
     private Type resolveBinaryOpType(JmmNode binaryOp) {
-        String op = binaryOp.get("op");
-        if (op.equals("+") || op.equals("-") || op.equals("*") || op.equals("/") || op.equals("<")) {
-            return newIntType();
-        }
-        if (op.equals("&&") || op.equals("||") || op.equals("==") || op.equals("!=")) {
+        String operator = binaryOp.get("op");
+
+        // Comparison and logical operators return boolean
+        if (operator.equals("<") || operator.equals(">") ||
+                operator.equals("<=") || operator.equals(">=") ||
+                operator.equals("==") || operator.equals("!=") ||
+                operator.equals("&&") || operator.equals("||")) {
             return newBooleanType();
         }
 
-        Report.newError(
-                Stage.SEMANTIC,
-                binaryOp.getLine(),
-                binaryOp.getColumn(),
-                "Unsupported binary operator: " + op,
-                null
-        );
-        return newIntType(); // Default return
+        // Arithmetic operators return int
+        return newIntType();
     }
 
     private Type resolveUnaryOpType(JmmNode unaryOp) {

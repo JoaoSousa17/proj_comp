@@ -46,7 +46,7 @@ public class JmmAnalysisImpl implements JmmAnalysis {
 
     @Override
     public JmmSemanticsResult semanticAnalysis(JmmSemanticsResult semanticsResult) {
-        System.out.println("Full AST:\n" + semanticsResult.getRootNode().toTree());
+
 
         var table = semanticsResult.getSymbolTable();
 
@@ -70,7 +70,7 @@ public class JmmAnalysisImpl implements JmmAnalysis {
 
                 // Return early in case of error report
                 if (hasSymbolTableErrors) {
-                    System.out.println("Found errors: " + reports);
+
                     return new JmmSemanticsResult(semanticsResult, reports);
                 }
 
@@ -81,7 +81,7 @@ public class JmmAnalysisImpl implements JmmAnalysis {
                         "Problem while executing analysis pass '" + analysisVisitor.getClass() + "'",
                         e)
                 );
-                System.out.println("Exception: " + reports);
+
             }
 
         }

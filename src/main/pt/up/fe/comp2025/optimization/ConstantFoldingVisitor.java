@@ -1,142 +1,183 @@
 package pt.up.fe.comp2025.optimization;
 
-import pt.up.fe.comp.jmm.ast.AJmmVisitor;
 import pt.up.fe.comp.jmm.ast.JmmNode;
+import pt.up.fe.comp.jmm.ast.AJmmVisitor;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
+import java.util.function.BiFunction;
+import java.util.logging.Logger;
+import java.util.logging.Level;
 
-public class ConstantFoldingVisitor extends AJmmVisitor<Boolean, Boolean> {
+public class ConstantFoldingVisitor extends AJmmVisitor<Void, Boolean> {
+
+    // Using a Logger instead of System.out.println for debugging
+    private static final Logger logger = Logger.getLogger(ConstantFoldingVisitor.class.getName());
+    private int optimizationCounter = 0;
+    private boolean debugMode = false;
+
+    // Store operations in a map for better extensibility
+    private final Map<String, BiFunction<Integer, Integer, Integer>> operationMap;
 
     public ConstantFoldingVisitor() {
-        setDefaultVisit(this::visitDefault);
+        // Initialize operations map
+        operationMap = new HashMap<>();
+        operationMap.put("+", (a, b) -> a + b);
+        operationMap.put("-", (a, b) -> a - b);
+        operationMap.put("*", (a, b) -> a * b);
+        operationMap.put("/", (a, b) -> b != 0 ? a / b : null);
+        operationMap.put("%", (a, b) -> b != 0 ? a % b : null);
+    }
+
+    public void enableDebug(boolean enable) {
+        this.debugMode = enable;
     }
 
     @Override
     protected void buildVisitor() {
-        addVisit("BinaryOp", this::visitBinaryOp);
-        addVisit("UnaryOp", this::visitUnaryOp);
+        // Register node visit methods
+        addVisit("BinaryOp", this::processBinaryOperation);
+        addVisit("UnaryOp", this::processUnaryOperation);
+
+        // Default visit for all other nodes
+        setDefaultVisit(this::processDefaultNode);
     }
 
-    private Boolean visitBinaryOp(JmmNode node, Boolean dummy) {
-        boolean childrenChanged = false;
-        for (var child : node.getChildren()) {
-            childrenChanged |= visit(child);
+    private Boolean processDefaultNode(JmmNode node, Void unused) {
+
+
+        // Process all children
+        boolean modified = false;
+        for (JmmNode child : node.getChildren()) {
+            boolean childModified = visit(child);
+            modified = modified || childModified;
         }
 
-        List<JmmNode> children = node.getChildren();
-        if (children.size() < 2) return childrenChanged;
-
-        JmmNode left = children.get(0);
-        JmmNode right = children.get(1);
-        String op = node.get("op");
-
-        if (isLiteral(left) && isLiteral(right)) {
-            return evaluateLiterals(node, left, right, op);
-        }
-
-        return childrenChanged;
+        return modified;
     }
 
-    private Boolean evaluateLiterals(JmmNode node, JmmNode left, JmmNode right, String op) {
-        try {
-            if (isIntLiteral(left) && isIntLiteral(right)) {
-                int l = Integer.parseInt(left.get("value"));
-                int r = Integer.parseInt(right.get("value"));
+    private Boolean processBinaryOperation(JmmNode node, Void unused) {
 
-                return switch (op) {
-                    case "+" -> { replaceWithInteger(node, l + r); yield true; }
-                    case "-" -> { replaceWithInteger(node, l - r); yield true; }
-                    case "*" -> { replaceWithInteger(node, l * r); yield true; }
-                    case "/" -> {
-                        if (r == 0) yield false;
-                        replaceWithInteger(node, l / r); yield true;
-                    }
-                    case "<" -> { replaceWithBoolean(node, l < r); yield true; }
-                    case ">" -> { replaceWithBoolean(node, l > r); yield true; }
-                    case "<=" -> { replaceWithBoolean(node, l <= r); yield true; }
-                    case ">=" -> { replaceWithBoolean(node, l >= r); yield true; }
-                    case "==" -> { replaceWithBoolean(node, l == r); yield true; }
-                    case "!=" -> { replaceWithBoolean(node, l != r); yield true; }
-                    default -> false;
-                };
-            } else if (isBoolLiteral(left) && isBoolLiteral(right)) {
-                boolean l = Boolean.parseBoolean(left.get("value"));
-                boolean r = Boolean.parseBoolean(right.get("value"));
 
-                return switch (op) {
-                    case "&&" -> { replaceWithBoolean(node, l && r); yield true; }
-                    case "||" -> { replaceWithBoolean(node, l || r); yield true; }
-                    case "==" -> { replaceWithBoolean(node, l == r); yield true; }
-                    case "!=" -> { replaceWithBoolean(node, l != r); yield true; }
-                    default -> false;
-                };
-            }
-        } catch (Exception e) {
-            System.err.println("Erro ao avaliar literais: " + e.getMessage());
+        // First process children recursively
+        boolean modified = false;
+        for (JmmNode child : node.getChildren()) {
+            boolean childModified = visit(child);
+            modified = modified || childModified;
         }
 
-        return false;
-    }
+        // Check if we can fold this operation
+        if (node.getNumChildren() != 2) {
 
-    private Boolean visitUnaryOp(JmmNode node, Boolean dummy) {
-        boolean childrenChanged = false;
+            return modified;
+        }
 
-        if (node.getChildren().isEmpty()) return false;
+        JmmNode leftOperand = node.getChild(0);
+        JmmNode rightOperand = node.getChild(1);
+        String operator = node.get("op");
 
-        JmmNode child = node.getChildren().get(0);
-        childrenChanged = visit(child);
+        if (canBeEvaluated(leftOperand) && canBeEvaluated(rightOperand)) {
+            Integer leftValue = extractIntegerValue(leftOperand);
+            Integer rightValue = extractIntegerValue(rightOperand);
 
-        String op = node.get("op");
+            // Try to evaluate
+            Integer result = evaluateOperation(leftValue, rightValue, operator);
+            if (result != null) {
+                // Create a new literal node with the folded result
+                JmmNode foldedNode = createIntegerLiteralNode(result);
+                node.replace(foldedNode);
+                optimizationCounter++;
 
-        try {
-            if (op.equals("-") && isIntLiteral(child)) {
-                int val = Integer.parseInt(child.get("value"));
-                replaceWithInteger(node, -val);
-                return true;
-            } else if (op.equals("!") && isBoolLiteral(child)) {
-                boolean val = Boolean.parseBoolean(child.get("value"));
-                replaceWithBoolean(node, !val);
                 return true;
             }
-        } catch (Exception e) {
-            System.err.println("Erro ao aplicar unary folding: " + e.getMessage());
         }
 
-        return childrenChanged;
+        return modified;
     }
 
-    private Boolean visitDefault(JmmNode node, Boolean dummy) {
-        boolean changed = false;
-        for (var child : node.getChildren()) {
-            changed |= visit(child);
+    private Boolean processUnaryOperation(JmmNode node, Void unused) {
+
+
+        // Process the operand first
+        boolean modified = false;
+        if (node.getNumChildren() > 0) {
+            boolean childModified = visit(node.getChild(0));
+            modified = modified || childModified;
+        } else {
+
+            return false;
         }
-        return changed;
+
+        // Check if we can evaluate this unary operation
+        String operator = node.get("op");
+        JmmNode operand = node.getChild(0);
+
+        if (operator.equals("-") && canBeEvaluated(operand)) {
+            Integer value = extractIntegerValue(operand);
+            if (value != null) {
+                JmmNode foldedNode = createIntegerLiteralNode(-value);
+                node.replace(foldedNode);
+                optimizationCounter++;
+
+                return true;
+            }
+        }
+
+        return modified;
     }
 
-    // --- Métodos auxiliares ---
-
-    private boolean isLiteral(JmmNode node) {
-        return isIntLiteral(node) || isBoolLiteral(node);
+    private boolean canBeEvaluated(JmmNode node) {
+        return node != null && node.getKind().equals("Integer") && node.hasAttribute("value");
     }
 
-    private boolean isIntLiteral(JmmNode node) {
-        return node.getKind().equals("Integer");
+    private Integer extractIntegerValue(JmmNode node) {
+        if (!canBeEvaluated(node)) {
+            return null;
+        }
+
+        try {
+            return Integer.parseInt(node.get("value"));
+        } catch (NumberFormatException e) {
+
+            return null;
+        }
     }
 
-    private boolean isBoolLiteral(JmmNode node) {
-        return node.getKind().equals("Boolean");
+    private Integer evaluateOperation(Integer left, Integer right, String operator) {
+        if (left == null || right == null) {
+            return null;
+        }
+
+        BiFunction<Integer, Integer, Integer> operation = operationMap.get(operator);
+        if (operation == null) {
+
+            return null;
+        }
+
+        try {
+            return operation.apply(left, right);
+        } catch (ArithmeticException e) {
+
+            return null;
+        }
     }
 
-    private void replaceWithInteger(JmmNode node, int value) {
-        node.put("kind", "Integer");
-        node.put("value", String.valueOf(value));
-        node.getChildren().clear();
+    private JmmNode createIntegerLiteralNode(Integer value) {
+        JmmNode literalNode = new pt.up.fe.comp.jmm.ast.JmmNodeImpl(Collections.singletonList("Integer"));
+        literalNode.put("value", value.toString());
+        return literalNode;
     }
 
-    private void replaceWithBoolean(JmmNode node, boolean value) {
-        node.put("kind", "Boolean");
-        node.put("value", String.valueOf(value));
-        node.getChildren().clear();
+    private void logDebug(String message) {
+        if (debugMode) {
+            logger.log(Level.INFO, message);
+        }
+    }
+
+    /**
+     * Returns the number of constant folding optimizations performed.
+     * @return count of successful optimizations
+     */
+    public int getOptimizationCount() {
+        return optimizationCounter;
     }
 }

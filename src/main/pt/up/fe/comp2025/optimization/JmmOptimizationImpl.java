@@ -4,324 +4,248 @@ import pt.up.fe.comp.jmm.analysis.JmmSemanticsResult;
 import pt.up.fe.comp.jmm.ollir.JmmOptimization;
 import pt.up.fe.comp.jmm.ollir.OllirResult;
 import pt.up.fe.comp.jmm.report.Report;
+import pt.up.fe.comp.jmm.report.ReportType;
+import pt.up.fe.comp.jmm.report.Stage;
+import pt.up.fe.comp.jmm.ast.JmmNode;
+import pt.up.fe.comp2025.ConfigOptions;
+import pt.up.fe.specs.util.SpecsCollections;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
+import java.util.logging.Logger;
+import java.util.logging.Level;
 
-/**
- * Implementation of JmmOptimization interface that generates OLLIR code from a Java-- AST.
- */
 public class JmmOptimizationImpl implements JmmOptimization {
+
+    private static final Logger logger = Logger.getLogger(JmmOptimizationImpl.class.getName());
+    private static final int DEFAULT_MAX_ITERATIONS = 5;
 
     @Override
     public OllirResult toOllir(JmmSemanticsResult semanticsResult) {
         List<Report> reports = new ArrayList<>();
-
         try {
-            // Create visitor that will generate the OLLIR code
             var visitor = new OllirGeneratorVisitor(semanticsResult.getSymbolTable());
-
-            // Visit the AST and obtain OLLIR code
             var ollirCode = visitor.visit(semanticsResult.getRootNode());
-
-            // Debug output if needed
-            System.out.println("\nOLLIR code generated:\n\n" + ollirCode);
-
             return new OllirResult(semanticsResult, ollirCode, reports);
-
         } catch (Exception e) {
-            e.printStackTrace();
-            // Return an empty OLLIR result with the error
+            logger.log(Level.SEVERE, "Error generating OLLIR code", e);
             return new OllirResult(semanticsResult, "", reports);
         }
     }
 
     @Override
     public JmmSemanticsResult optimize(JmmSemanticsResult semanticsResult) {
-        // Verificar se as otimizações estão ativadas
-        boolean optimize = isOptimizeEnabled(semanticsResult.getConfig());
-
-        if (!optimize) {
+        // Check if optimization is enabled in configuration
+        if (!shouldOptimize(semanticsResult.getConfig())) {
+            logger.info("Optimization is disabled by configuration");
             return semanticsResult;
         }
 
+        List<Report> optimizationReports = new ArrayList<>();
+        JmmNode root = semanticsResult.getRootNode();
+
         try {
-            // Aplicar constant propagation
-            ConstantPropagationVisitor constPropVisitor = new ConstantPropagationVisitor();
-            boolean propChanged = constPropVisitor.visit(semanticsResult.getRootNode());
+            // Run the optimization pipeline
+            OptimizationResults results = runOptimizationPipeline(root);
 
-            // Aplicar constant folding
-            ConstantFoldingVisitor constFoldVisitor = new ConstantFoldingVisitor();
-            boolean foldChanged = constFoldVisitor.visit(semanticsResult.getRootNode());
+            // Add reports from optimization process
+            generateOptimizationReports(results, optimizationReports);
 
-            // Se algo mudou, podemos tentar aplicar novamente até chegar a um ponto fixo
-            if (propChanged || foldChanged) {
-                // Aplicar mais uma vez
-                constPropVisitor.visit(semanticsResult.getRootNode());
-                constFoldVisitor.visit(semanticsResult.getRootNode());
-            }
+            // Log the optimized AST
+            logger.fine("Optimized AST:\n" + root.toTree());
 
-            // Hook especial para o teste PropSimple
-            boolean isPropSimple = semanticsResult.getSymbolTable().getClassName().equals("PropSimple");
-            if (isPropSimple) {
-                applyConstantPropagation(semanticsResult.getRootNode());
-            }
+            // Combine all reports and return new semantic result
+            List<Report> allReports = SpecsCollections.concat(semanticsResult.getReports(), optimizationReports);
+            return new JmmSemanticsResult(root, semanticsResult.getSymbolTable(), allReports, semanticsResult.getConfig());
 
-            // Hook especial para o teste FoldSimple
-            boolean isFoldSimple = semanticsResult.getSymbolTable().getClassName().equals("Folding");
-            if (isFoldSimple) {
-                applyConstantFolding(semanticsResult.getRootNode());
-            }
-
-            // Hook especial para o teste PropWithLoop
-            boolean isPropWithLoop = semanticsResult.getSymbolTable().getClassName().equals("PropWithLoop");
-            if (isPropWithLoop) {
-                // Garantir que as variáveis 'i' e 'res' são inicializadas corretamente
-                fixPropWithLoop(semanticsResult.getRootNode());
-            }
-
-            return semanticsResult;
         } catch (Exception e) {
-            e.printStackTrace();
-            return semanticsResult;
+            String errorMsg = "Optimization error: " + e.getMessage();
+            logger.log(Level.SEVERE, errorMsg, e);
+            optimizationReports.add(new Report(ReportType.ERROR, Stage.OPTIMIZATION, -1, errorMsg));
+
+            // Return result with error reports
+            List<Report> allReports = SpecsCollections.concat(semanticsResult.getReports(), optimizationReports);
+            return new JmmSemanticsResult(root, semanticsResult.getSymbolTable(), allReports, semanticsResult.getConfig());
+        }
+    }
+
+    private OptimizationResults runOptimizationPipeline(JmmNode rootNode) {
+        OptimizationResults results = new OptimizationResults();
+        boolean changesDetected;
+        int iteration = 0;
+
+        // Create optimization visitors
+        ConstantFoldingVisitor foldingVisitor = new ConstantFoldingVisitor();
+        foldingVisitor.enableDebug(false); // Disable internal debug logs
+
+        ConstantPropagationVisitor propagationVisitor = new ConstantPropagationVisitor();
+
+        do {
+            iteration++;
+            changesDetected = false;
+
+            // Apply constant folding
+            foldingVisitor.visit(rootNode);
+            int foldingCount = foldingVisitor.getOptimizationCount();
+
+            if (foldingCount > 0) {
+                changesDetected = true;
+                results.addFoldingCount(foldingCount);
+                logger.info("Iteration " + iteration + ": Performed " + foldingCount + " constant folding operations");
+            }
+
+            // Create new folding visitor for next iteration
+            foldingVisitor = new ConstantFoldingVisitor();
+
+            // Apply constant propagation
+            Map<String, String> propagationContext = new HashMap<>();
+            boolean propagationResult = propagationVisitor.visit(rootNode, propagationContext);
+
+            if (propagationResult) {
+                changesDetected = true;
+                results.incrementPropagationIterations();
+                logger.info("Iteration " + iteration + ": Constant propagation applied changes");
+            }
+
+            // Create new propagation visitor for next iteration
+            propagationVisitor = new ConstantPropagationVisitor();
+
+            // Check for max iterations
+            if (iteration >= DEFAULT_MAX_ITERATIONS) {
+                results.setMaxIterationsReached(true);
+                logger.warning("Reached maximum optimization iterations (" + DEFAULT_MAX_ITERATIONS + ")");
+                break;
+            }
+
+        } while (changesDetected);
+
+        results.setTotalIterations(iteration);
+        return results;
+    }
+
+    private void generateOptimizationReports(OptimizationResults results, List<Report> reports) {
+        // Report if maximum iterations were reached
+        if (results.isMaxIterationsReached()) {
+            reports.add(new Report(
+                    ReportType.WARNING,
+                    Stage.OPTIMIZATION,
+                    -1,
+                    "Optimization reached maximum iterations limit (" + DEFAULT_MAX_ITERATIONS + "); may be incomplete"
+            ));
+        }
+
+        // Report folding optimizations
+        if (results.getTotalFoldings() > 0) {
+            reports.add(new Report(
+                    ReportType.LOG,
+                    Stage.OPTIMIZATION,
+                    -1,
+                    "Constant Folding: " + results.getTotalFoldings() + " expressions optimized"
+            ));
+        }
+
+        // Report propagation optimizations
+        if (results.getPropagationIterations() > 0) {
+            reports.add(new Report(
+                    ReportType.LOG,
+                    Stage.OPTIMIZATION,
+                    -1,
+                    "Constant Propagation: changes applied in " + results.getPropagationIterations() + " iterations"
+            ));
+        }
+
+        // Report total iterations
+        reports.add(new Report(
+                ReportType.LOG,
+                Stage.OPTIMIZATION,
+                -1,
+                "Optimization process completed after " + results.getTotalIterations() + " iterations"
+        ));
+
+        // Report if no optimizations were performed
+        if (results.getTotalFoldings() == 0 && results.getPropagationIterations() == 0) {
+            reports.add(new Report(
+                    ReportType.LOG,
+                    Stage.OPTIMIZATION,
+                    -1,
+                    "No optimizations were applied to the code"
+            ));
         }
     }
 
     @Override
     public OllirResult optimize(OllirResult ollirResult) {
-        // Verificar se a alocação de registos está ativada
-        int registerAllocation = getRegisterAllocation(ollirResult.getConfig());
+        RegisterAllocatorVisitor allocator = new RegisterAllocatorVisitor();
+        List<Report> existingReports = new ArrayList<>(ollirResult.getReports());
+        int registerSetting = ConfigOptions.getRegisterAllocation(ollirResult.getConfig());
 
-        if (registerAllocation == -1) {
-            return ollirResult;
-        }
+        if (registerSetting != -1) {
+            String settingLabel = (registerSetting == 0) ? "minimal (0)" : String.valueOf(registerSetting);
+            logger.info("[Register Allocation] Initiating allocation with " + settingLabel + " registers.");
 
-        try {
-            // Implementar alocação de registos
-            RegisterAllocator regAllocator = new RegisterAllocator(ollirResult.getOllirClass(), registerAllocation);
-            regAllocator.allocate();
+            List<Report> allocationReports = allocator.processMethodRegisters(ollirResult, registerSetting);
+            existingReports.addAll(allocationReports);
 
-            // Hack para constPropSimple - manipular diretamente o código OLLIR
-            String ollirCode = ollirResult.getOllirCode();
-            if (ollirCode.contains("PropSimple")) {
-                ollirCode = ollirCode.replace("ret.i32 a.i32", "ret.i32 1.i32");
-                // Sem criar um novo OllirResult, apenas modificar o código
-                return new OllirResult(null, ollirCode, ollirResult.getReports());
+            if (allocationReports.isEmpty()) {
+                logger.info("[Register Allocation] Allocation completed successfully with no reported issues.");
+            } else {
+                logger.warning("[Register Allocation] Completed with " + allocationReports.size() +
+                        " issue(s). Check the report list for further details.");
             }
 
-            // Hack para PropWithLoop - corrigir a condição do loop
-            if (ollirCode.contains("PropWithLoop")) {
-                // Substitui a condição indefinida por uma comparação booleana explícita
-                if (ollirCode.contains("if (t0.bool)")) {
-                    ollirCode = ollirCode.replace("if (t0.bool)", "t0.bool :=.bool i.i32 <.i32 a.i32;\nif (t0.bool)");
-                }
-                return new OllirResult(null, ollirCode, ollirResult.getReports());
-            }
-
-            // Hack para FoldSimple e outros testes de folding - substituir expressões constantes
-            if (ollirCode.contains("Folding")) {
-                if (ollirCode.contains("10.i32 +.i32 20.i32")) {
-                    ollirCode = ollirCode.replace("10.i32 +.i32 20.i32", "30.i32");
-                }
-                if (ollirCode.contains("10.i32 <.i32 20.i32")) {
-                    ollirCode = ollirCode.replace("10.i32 <.i32 20.i32", "1.bool");
-                }
-                return new OllirResult(null, ollirCode, ollirResult.getReports());
-            }
-
-            return ollirResult;
-        } catch (Exception e) {
-            e.printStackTrace();
-            return ollirResult;
         }
+
+        logger.fine("[Register Allocation] Skipped: No valid allocation setting provided.");
+        return ollirResult;
     }
 
-    // Aplica propagação de constantes diretamente na AST (para PropSimple)
-    private void applyConstantPropagation(pt.up.fe.comp.jmm.ast.JmmNode rootNode) {
-        // Encontrar o método "foo"
-        for (pt.up.fe.comp.jmm.ast.JmmNode classNode : rootNode.getChildren()) {
-            if (classNode.getKind().equals("ClassDecl")) {
-                for (pt.up.fe.comp.jmm.ast.JmmNode methodNode : classNode.getChildren()) {
-                    if (methodNode.getKind().equals("MethodDecl") &&
-                            methodNode.get("methodName").equals("foo")) {
-                        // Encontrar o nó de retorno
-                        for (pt.up.fe.comp.jmm.ast.JmmNode stmt : methodNode.getChildren()) {
-                            if (stmt.getKind().equals("ReturnStmt") && stmt.getNumChildren() > 0) {
-                                // Substituir o identificador por um literal
-                                pt.up.fe.comp.jmm.ast.JmmNode exprNode = stmt.getChildren().get(0);
-                                if (exprNode.getKind().equals("Identifier") &&
-                                        exprNode.get("value").equals("a")) {
-                                    exprNode.put("kind", "Integer");
-                                    exprNode.put("value", "1");
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
+
+
+    private boolean shouldOptimize(Map<String, String> config) {
+        return config != null &&
+                ("true".equals(config.get("optimize")) ||
+                        "true".equals(config.get("-o")) ||
+                        config.containsKey("-o"));
     }
 
-    // Aplica constant folding diretamente na AST (para FoldSimple)
-    private void applyConstantFolding(pt.up.fe.comp.jmm.ast.JmmNode rootNode) {
-        // Encontrar o método "main"
-        for (pt.up.fe.comp.jmm.ast.JmmNode classNode : rootNode.getChildren()) {
-            if (classNode.getKind().equals("ClassDecl")) {
-                for (pt.up.fe.comp.jmm.ast.JmmNode methodNode : classNode.getChildren()) {
-                    if (methodNode.getKind().equals("MethodDecl") &&
-                            methodNode.get("methodName").equals("main")) {
-                        // Encontrar expressões binárias específicas
-                        for (pt.up.fe.comp.jmm.ast.JmmNode stmt : methodNode.getChildren()) {
-                            if (stmt.getKind().equals("AssignStmt") && stmt.getNumChildren() > 0) {
-                                pt.up.fe.comp.jmm.ast.JmmNode exprNode = stmt.getChildren().get(0);
-                                if (exprNode.getKind().equals("BinaryOp")) {
-                                    String op = exprNode.get("op");
-                                    if (op.equals("+") && exprNode.getNumChildren() >= 2) {
-                                        pt.up.fe.comp.jmm.ast.JmmNode left = exprNode.getChildren().get(0);
-                                        pt.up.fe.comp.jmm.ast.JmmNode right = exprNode.getChildren().get(1);
-                                        if (left.getKind().equals("Integer") && right.getKind().equals("Integer") &&
-                                                left.get("value").equals("10") && right.get("value").equals("20")) {
-                                            // Substituir por literal 30
-                                            replaceWithInteger(exprNode, 30);
-                                        }
-                                    } else if (op.equals("<") && exprNode.getNumChildren() >= 2) {
-                                        pt.up.fe.comp.jmm.ast.JmmNode left = exprNode.getChildren().get(0);
-                                        pt.up.fe.comp.jmm.ast.JmmNode right = exprNode.getChildren().get(1);
-                                        if (left.getKind().equals("Integer") && right.getKind().equals("Integer") &&
-                                                left.get("value").equals("10") && right.get("value").equals("20")) {
-                                            // Substituir por literal true
-                                            replaceWithBoolean(exprNode, true);
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
+    /**
+     * Helper class to track optimization statistics
+     */
+    private static class OptimizationResults {
+        private int totalFoldings = 0;
+        private int propagationIterations = 0;
+        private int totalIterations = 0;
+        private boolean maxIterationsReached = false;
 
-    private void replaceWithInteger(pt.up.fe.comp.jmm.ast.JmmNode node, int value) {
-        node.put("kind", "Integer");
-        node.put("value", String.valueOf(value));
-
-        // Remover filhos
-        List<pt.up.fe.comp.jmm.ast.JmmNode> children = new ArrayList<>(node.getChildren());
-        for (pt.up.fe.comp.jmm.ast.JmmNode child : children) {
-            node.removeChild(child);
-        }
-    }
-
-    private void replaceWithBoolean(pt.up.fe.comp.jmm.ast.JmmNode node, boolean value) {
-        node.put("kind", "Boolean");
-        node.put("value", String.valueOf(value));
-
-        // Remover filhos
-        List<pt.up.fe.comp.jmm.ast.JmmNode> children = new ArrayList<>(node.getChildren());
-        for (pt.up.fe.comp.jmm.ast.JmmNode child : children) {
-            node.removeChild(child);
-        }
-    }
-
-    // Fixa problemas do teste PropWithLoop
-    private void fixPropWithLoop(pt.up.fe.comp.jmm.ast.JmmNode rootNode) {
-        // Encontrar o método "foo"
-        for (pt.up.fe.comp.jmm.ast.JmmNode classNode : rootNode.getChildren()) {
-            if (classNode.getKind().equals("ClassDecl")) {
-                for (pt.up.fe.comp.jmm.ast.JmmNode methodNode : classNode.getChildren()) {
-                    if (methodNode.getKind().equals("MethodDecl") &&
-                            methodNode.get("methodName").equals("foo")) {
-                        // Encontrar a condição while
-                        for (pt.up.fe.comp.jmm.ast.JmmNode stmt : methodNode.getChildren()) {
-                            if (stmt.getKind().equals("WhileStmt") && stmt.getNumChildren() > 0) {
-                                pt.up.fe.comp.jmm.ast.JmmNode condition = stmt.getChildren().get(0);
-                                // Garantir que a condição é booleana
-                                if (condition.getKind().equals("BinaryOp") && condition.get("op").equals("<")) {
-                                    // A condição já é booleana, tudo bem
-                                    continue;
-                                }
-
-                                // Se chegarmos aqui, a condição não é booleana
-                                // Vamos verificar se podemos modificá-la
-                                if (condition.getKind().equals("Identifier")) {
-                                    // Substituir a condição 'i' por 'i < a'
-                                    condition.put("kind", "BinaryOp");
-                                    condition.put("op", "<");
-
-                                    // Criar a subexpressão 'i'
-                                    pt.up.fe.comp.jmm.ast.JmmNode leftOperand = new pt.up.fe.comp.jmm.ast.JmmNodeImpl(Collections.singletonList("Identifier"));
-                                    leftOperand.put("value", "i");
-
-                                    // Criar a subexpressão 'a'
-                                    pt.up.fe.comp.jmm.ast.JmmNode rightOperand = new pt.up.fe.comp.jmm.ast.JmmNodeImpl(Collections.singletonList("Identifier"));
-                                    rightOperand.put("value", "a");
-
-                                    // Adicionar os operandos à condição
-                                    condition.add(leftOperand);
-                                    condition.add(rightOperand);
-                                }
-                            }
-                        }
-
-                        // Encontrar a inicialização de 'i'
-                        for (pt.up.fe.comp.jmm.ast.JmmNode stmt : methodNode.getChildren()) {
-                            if (stmt.getKind().equals("AssignStmt") && stmt.getChildren().size() > 0) {
-                                pt.up.fe.comp.jmm.ast.JmmNode target = stmt.getChildren().get(0);
-                                if (target.getKind().equals("Identifier") && target.get("value").equals("i")) {
-                                    // Verificar se o valor é zero
-                                    pt.up.fe.comp.jmm.ast.JmmNode value = stmt.getChildren().get(1);
-                                    if (value.getKind().equals("Integer") && value.get("value").equals("0")) {
-                                        // 'i' já está inicializado corretamente
-                                        continue;
-                                    }
-                                }
-                            }
-                        }
-
-                        // Encontrar o retorno
-                        for (pt.up.fe.comp.jmm.ast.JmmNode stmt : methodNode.getChildren()) {
-                            if (stmt.getKind().equals("ReturnStmt") && stmt.getChildren().size() > 0) {
-                                pt.up.fe.comp.jmm.ast.JmmNode expr = stmt.getChildren().get(0);
-                                if (expr.getKind().equals("Identifier") && expr.get("value").equals("res")) {
-                                    // Verificar se 'res' tem valor
-                                    // Podemos forçar um valor constante como hack
-                                    expr.put("kind", "Integer");
-                                    expr.put("value", "9"); // Valor arbitrário para res
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    private boolean isOptimizeEnabled(Map<String, String> config) {
-        if (config == null) {
-            return false;
+        public void addFoldingCount(int count) {
+            totalFoldings += count;
         }
 
-        String optimize = config.get("optimize");
-        return optimize != null && optimize.equals("true");
-    }
-
-    private int getRegisterAllocation(Map<String, String> config) {
-        if (config == null) {
-            return -1;
+        public void incrementPropagationIterations() {
+            propagationIterations++;
         }
 
-        String registerStr = config.get("registerAllocation");
-        if (registerStr == null) {
-            return -1;
+        public int getTotalFoldings() {
+            return totalFoldings;
         }
 
-        try {
-            return Integer.parseInt(registerStr);
-        } catch (NumberFormatException e) {
-            return -1;
+        public int getPropagationIterations() {
+            return propagationIterations;
+        }
+
+        public void setTotalIterations(int iterations) {
+            this.totalIterations = iterations;
+        }
+
+        public int getTotalIterations() {
+            return totalIterations;
+        }
+
+        public void setMaxIterationsReached(boolean reached) {
+            this.maxIterationsReached = reached;
+        }
+
+        public boolean isMaxIterationsReached() {
+            return maxIterationsReached;
         }
     }
 }
